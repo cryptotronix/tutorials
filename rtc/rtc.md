@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The CryptoCape is a BeagleBone Black Cape that contains several cryptographic ICs, an ATmega328p, and a Real-Time Clock (RTC).  This tutorial will describe the RTC on the CryptoCape, provide a brief primer on programming with I2C on the BeagleBone Black (BBB), and show how to configure your BBB to use the RTC.
+The CryptoCape is a BeagleBone Black Cape that contains several cryptographic ICs, an ATmega328p, and a Real-Time Clock (RTC).  This tutorial will describe the RTC on the CryptoCape, provide a brief primer on programming with I2C on the BeagleBone Black (BBB), and show how to configure your BBB to use the RTC.  This tutorial will cover the basics and in the *Going Further* section, there are ideas for more complex projects.
 
 ### Required Materials
 
@@ -21,7 +21,11 @@ The CryptoCape has seven ICs, one of which is the Maxim Integrated DS3231M Real-
 
 While the BBB does have a RTC, connecting the battery from a cape to the very small test points on the BBB to provide power is a bit tricky.  Also, it was not clear to me that the battery would supply power just to the RTC and not the entire BBB.  This would deplete the battery much more rapidly.
 
-Let's take a look at the RTC schematic and board file.  The RTC component sits on the left edge of the cape next to the coin cell battery holder.  It's supplied by 3.3V power with a decoupling capacitor (C3) and is connected to the I2C bus via its SDA and SCL pins.  The DS3231M can output a 32KHz signal and generate an interrupt.  These pins aren't used but they are broken out to 0.1" headers in the case that you want to use them.
+![RTC Schematic](rtc_schematic.png)
+
+Let's take a look at the RTC schematic and board file.  The RTC component sits on the left edge of the cape next to the coin cell battery holder.  It's supplied by 3.3V power with a decoupling capacitor (C3) and is connected to the I2C bus via its SDA and SCL pins.  The DS3231M can output a 32KHz signal and generate an interrupt.  These pins aren't used but they are broken out to 0.1" headers in the case that you want to use them.  The RTC is connected to the BBB via I2C on pins P9-19 (SCL) and P9-20 (SDA).  3.3V is supplied through pins P9-3 and P9-4 and ground is off of pins P9-1 and P9-2.
+
+![RTC Board](rtc_board.png)
 
 ## Installation
 
@@ -55,16 +59,47 @@ We need to know the I2C address of the RTC, which can be found in the datasheet 
 
     echo ds1307 0x68 | sudo tee /sys/class/i2c-adapter/i2c-2/new_device
 
+![Address Table](address_table.png)
+
 You should now see *two* RTCs when you enter `ls /dev/rtc*`: `rtc0` and `rtc1`.  The BBB's rtc is `rtc0`, the CryptoCape's is `rtc1`.
 
 
+### Getting the time
 
+First, we need to update the system time on the BBB.  You can quickly check the time by typing `date` and if you never updated your BBB's clock, it's most likely off by a matter of months.  We can update the system time on the BBB using NTP, the Network Time Protocol.  It's easy enough to do with the following command:
 
+    sudo ntpdate -b -u pool.ntp.org
+
+This feels a bit impersonal to me though.  You don't have to use the pooled NTP servers, if you know of a [close server](http://tf.nist.gov/tf-cgi/servers.cgi), you can use that address and "support" your local NTP server ;)
+
+    sudo ntpdate -b -u wwv.nist.gov
+
+### Setting the time
+
+The `hwclock` utility handles setting the time on the DS3231M.  Because there are two RTCs, we need to specify *which* one to set (the `-f` option) and also supply the `-w` option to write the time.  This will set the hwclcok to match the current system time.
+
+    sudo hwclock -w -f /dev/rtc1
+
+Verify the time with:
+
+    sudo hwclock -r -f /dev/rtc1
+
+That's it!  The time is now set on the clock and should maintain its time when main power is disconnected with a battery attached.
 
 ## Resources and Going Further
 
-[Datasheet](http://datasheets.maximintegrated.com/en/ds/DS3231M.pdf) for DS3231M.
-[BBB I2C References](http://datko.net/2013/11/03/bbb_i2c/)
-[BBB System Reference Manual](https://github.com/CircuitCo/BeagleBone-Black/blob/master/BBB_SRM.pdf?raw=true)
-[AM335x Technical Reference Manual](http://www.ti.com/lit/ug/spruh73j/spruh73j.pdf)
-[DS1307 Driver](http://lxr.free-electrons.com/source/drivers/rtc/rtc-ds1307.c?v=3.8;a=arm)
+### Going Further
+
+The `hwclock` utility has many more features, including a way to compensate for system drift.  The man page is worth a read and contains suggestions for how to script setting the system time on startup.  When developing your script, consider the case when the CryptoCape is not installed (i.e. when `/dev/rtc1` is not there).
+
+For those looking for a more secure way to set the time, check out Jacob Appelbaum's [`tlsdate`](https://github.com/ioerror/tlsdate) utility.  Jacob Appelbaum, among other things, is a prominent developer on the Tor Project and created this utility for Tor routers to set their time securely.  It uses a clever technique to grab the time from the Transport Layer Security (TLS) handshake.
+
+The DS3231M keeps time, but it also some other interesting features like a line to automatically debounce a reset signal, from a push button for example.  If you wanted, you could modify the kernel driver or you can start from my re-engineered user-space driver on [GitHub[(https://github.com/cryptotronix/rtc).  At the moment, it only sets and gets the time, but it should provide the infrastructure if you want to add features.  Pull requests welcome!
+
+### Resources
+
+- [Datasheet](http://datasheets.maximintegrated.com/en/ds/DS3231M.pdf) for DS3231M.
+- [BBB I2C References](http://datko.net/2013/11/03/bbb_i2c/)
+- [BBB System Reference Manual](https://github.com/CircuitCo/BeagleBone-Black/blob/master/BBB_SRM.pdf?raw=true)
+- [AM335x Technical Reference Manual](http://www.ti.com/lit/ug/spruh73j/spruh73j.pdf)
+- [DS1307 Driver](http://lxr.free-electrons.com/source/drivers/rtc/rtc-ds1307.c?v=3.8;a=arm)
