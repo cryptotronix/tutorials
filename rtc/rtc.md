@@ -55,6 +55,8 @@ In our example above, `/sys/bus/i2c/devices/i2c-2` matches the address for the p
 
 Fortunately, support for the DS3231M is provided via the DS1037 Linux kernel driver.  In the Kernel, the code says "DS3231" not "DS3231M."  The differences between the DS3231 and the "M" version is the that the DS3231M has an internal, temperature compensated resonator and is comes in the SOIC-8 package.
 
+If you are using the CryptoCape the driver is loaded automatically. Otherwise you can perform the following steps to load the driver if you are using a standalone DS3231M.
+
 We need to know the I2C address of the RTC, which can be found in the datasheet or in the super convenient I2C address table on the CryptoCape schematic.  Armed with that knowledge, lets inform the kernel about our RTC with:
 
     echo ds1307 0x68 | sudo tee /sys/class/i2c-adapter/i2c-2/new_device
